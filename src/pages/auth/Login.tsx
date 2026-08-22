@@ -4,7 +4,7 @@ import { useStore, Role } from '@/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Mail, Lock, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Login() {
@@ -13,7 +13,7 @@ export default function Login() {
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState('');
   
-  const { login } = useStore();
+  const { login, setToastMessage, toastMessage } = useStore();
   const navigate = useNavigate();
 
   const handleRoleSwitch = (newRole: Role) => {
@@ -25,7 +25,7 @@ export default function Login() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
@@ -39,13 +39,19 @@ export default function Login() {
       return;
     }
 
-    login(email, role);
+    const res = await login(email, password, role);
     
-    // Redirect based on role
-    if (role === 'admin') {
-      navigate('/admin');
+    if (res?.success) {
+      const empName = res.user?.name || (role === 'admin' ? 'Administrator' : 'Employee');
+      setToastMessage(`Welcome back, ${empName}! You have successfully logged in.`);
+      // Redirect based on role
+      if (role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } else {
-      navigate('/dashboard');
+      setError(res?.error || 'Failed to sign in. Please check your credentials.');
     }
   };
 
@@ -55,6 +61,12 @@ export default function Login() {
         <CardTitle className="text-2xl">Sign In</CardTitle>
       </CardHeader>
       <CardContent>
+        {toastMessage && (
+          <div className="mb-4 bg-emerald-bg border border-emerald/30 text-emerald text-xs font-semibold p-3 rounded-lg flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald shrink-0" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
         <div className="flex p-1 bg-surface-hover rounded-lg mb-6">
           <button 
             onClick={() => handleRoleSwitch('employee')}

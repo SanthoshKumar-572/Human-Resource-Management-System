@@ -8,6 +8,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  password?: string;
   role: Role;
   department: string;
   position: string;
@@ -49,9 +50,12 @@ interface AppState {
   leaveRequests: LeaveRequest[];
   isDbConnected: boolean;
   
+  toastMessage: string | null;
+  
   // Actions
+  setToastMessage: (msg: string | null) => void;
   fetchInitialData: () => Promise<void>;
-  login: (email: string, role: Role) => Promise<void>;
+  login: (email: string, password: string, role: Role) => Promise<{ success: boolean; user?: User; error?: string }>;
   logout: () => void;
   
   checkIn: () => Promise<void>;
@@ -61,6 +65,7 @@ interface AppState {
   updateLeaveStatus: (id: string, status: LeaveStatus, comment?: string) => Promise<void>;
   
   updateUser: (id: string, data: Partial<User>) => Promise<void>;
+  addUser: (userData: Omit<User, 'id'> & { password?: string }) => Promise<User>;
 }
 
 const yesterdayStr = format(addDays(new Date(), -1), 'yyyy-MM-dd');
@@ -70,6 +75,7 @@ const mockUsers: User[] = [
     id: '1',
     name: 'Sarah Connor',
     email: 'sarah@dayflow.com',
+    password: 'password123',
     role: 'employee',
     department: 'Engineering',
     position: 'Frontend Developer',
@@ -80,6 +86,7 @@ const mockUsers: User[] = [
     id: '2',
     name: 'Admin User',
     email: 'admin@dayflow.com',
+    password: 'password123',
     role: 'admin',
     department: 'HR',
     position: 'HR Manager',
@@ -107,6 +114,9 @@ export const useStore = create<AppState>()(
       attendance: mockAttendance,
       leaveRequests: [],
       isDbConnected: false,
+      toastMessage: null,
+
+      setToastMessage: (msg) => set({ toastMessage: msg }),
 
       fetchInitialData: async () => {
         try {
@@ -136,19 +146,22 @@ export const useStore = create<AppState>()(
         }
       },
       
-      login: async (email, role) => {
+      login: async (email, password, role) => {
         try {
           const response = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, role })
+            body: JSON.stringify({ email, password, role })
           });
 
           if (response.ok) {
             const user = await response.json();
             set({ currentUser: user, isDbConnected: true });
             await get().fetchInitialData();
-            return;
+            return { success: true, user };
+          } else {
+            const errData = await response.json().catch(() => ({}));
+            return { success: false, error: errData.error || 'Invalid email or password' };
           }
         } catch (e) {
           console.warn('MySQL API unreachable, falling back to local state:', e);
@@ -157,18 +170,29 @@ export const useStore = create<AppState>()(
         // Fallback local logic if MySQL server is not connected
         const user = get().users.find(u => u.email === email && u.role === role);
         if (user) {
+          if (user.password && password && user.password !== password) {
+            return { success: false, error: 'Invalid password. Please check your credentials.' };
+          }
           set({ currentUser: user });
+          return { success: true, user };
         } else {
+          const rawName = email.split('@')[0];
+          const formattedName = rawName
+            .replace(/[._-]/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+
           const newUser: User = {
             id: Math.random().toString(36).substr(2, 9),
-            name: email.split('@')[0],
+            name: formattedName,
             email,
+            password: password || 'password123',
             role,
             department: 'General',
             position: 'Staff',
             joinDate: format(new Date(), 'yyyy-MM-dd')
           };
           set({ users: [...get().users, newUser], currentUser: newUser });
+          return { success: true, user: newUser };
         }
       },
       
@@ -200,7 +224,15 @@ export const useStore = create<AppState>()(
         const now = new Date();
         const dateStr = format(now, 'yyyy-MM-dd');
         const existing = get().attendance.find(a => a.userId === user.id && a.date === dateStr);
-        if (!existing) {
+        if (existing) {
+          set(state => ({
+            attendance: state.attendance.map(a => 
+              (a.userId === user.id && a.date === dateStr)
+                ? { ...a, checkIn: now.toISOString(), checkOut: undefined, status: 'present' }
+                : a
+            )
+          }));
+        } else {
           const newRecord: AttendanceRecord = {
             id: Math.random().toString(36).substr(2, 9),
             userId: user.id,
@@ -336,6 +368,36 @@ export const useStore = create<AppState>()(
           users: state.users.map(u => u.id === id ? { ...u, ...data } : u),
           currentUser: state.currentUser?.id === id ? { ...state.currentUser, ...data } : state.currentUser
         }));
+      },
+
+      addUser: async (userData) => {
+        try {
+          const response = await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData)
+          });
+
+          if (response.ok) {
+            const newUser = await response.json();
+            set(state => ({
+              users: [newUser, ...state.users]
+            }));
+            return newUser;
+          }
+        } catch (e) {
+          console.warn('MySQL addUser API error:', e);
+        }
+
+        // Fallback local user creation
+        const newUser: User = {
+          ...userData,
+          id: Math.random().toString(36).substr(2, 9),
+        };
+        set(state => ({
+          users: [newUser, ...state.users]
+        }));
+        return newUser;
       }
     }),
     {

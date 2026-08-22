@@ -66,7 +66,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 // Authentication / User Login
 app.post('/api/auth/login', async (req: Request, res: Response) => {
   try {
-    const { email, role } = req.body;
+    const { email, password, role } = req.body;
     if (!email || !role) {
       return res.status(400).json({ error: 'Email and role are required' });
     }
@@ -77,18 +77,26 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     );
 
     if (rows.length > 0) {
-      return res.json(formatUser(rows[0]));
+      const user = rows[0];
+      if (user.password && password && user.password !== password) {
+        return res.status(401).json({ error: 'Invalid password. Please check your credentials.' });
+      }
+      return res.json(formatUser(user));
     }
 
     // If user does not exist, create new user (mock login behavior)
     const newId = Math.random().toString(36).substr(2, 9);
-    const newName = email.split('@')[0];
+    const rawName = email.split('@')[0];
+    const newName = rawName
+      .replace(/[._-]/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
     const today = format(new Date(), 'yyyy-MM-dd');
+    const userPassword = password || 'password123';
 
     await pool.query(
-      `INSERT INTO users (id, name, email, role, department, position, join_date)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [newId, newName, email, role, 'General', 'Staff', today]
+      `INSERT INTO users (id, name, email, password, role, department, position, join_date)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newId, newName, email, userPassword, role, 'General', 'Staff', today]
     );
 
     const [createdRows]: any = await pool.query('SELECT * FROM users WHERE id = ?', [newId]);
@@ -107,6 +115,32 @@ app.get('/api/users', async (_req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: error.message || 'Database error' });
+  }
+});
+
+// Create new user / employee
+app.post('/api/users', async (req: Request, res: Response) => {
+  try {
+    const { name, email, password, role, department, position, salary, avatar, joinDate } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email are required' });
+    }
+
+    const newId = Math.random().toString(36).substr(2, 9);
+    const dateStr = joinDate || format(new Date(), 'yyyy-MM-dd');
+    const userPassword = password || 'password123';
+
+    await pool.query(
+      `INSERT INTO users (id, name, email, password, role, department, position, salary, avatar, join_date)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newId, name, email, userPassword, role || 'employee', department || 'General', position || 'Staff', salary || 0, avatar || null, dateStr]
+    );
+
+    const [rows]: any = await pool.query('SELECT * FROM users WHERE id = ?', [newId]);
+    return res.json(formatUser(rows[0]));
+  } catch (error: any) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: error.message || 'Database error creating user' });
   }
 });
 
@@ -161,11 +195,11 @@ app.post('/api/attendance/check-in', async (req: Request, res: Response) => {
     const dateStr = format(now, 'yyyy-MM-dd');
     const newId = Math.random().toString(36).substr(2, 9);
 
-    // Insert or ignore if record exists for user on this date
+    // Insert or update check-in, clearing check_out so user is active again
     await pool.query(
-      `INSERT INTO attendance (id, user_id, date, status, check_in)
-       VALUES (?, ?, ?, 'present', ?)
-       ON DUPLICATE KEY UPDATE check_in = COALESCE(check_in, VALUES(check_in))`,
+      `INSERT INTO attendance (id, user_id, date, status, check_in, check_out)
+       VALUES (?, ?, ?, 'present', ?, NULL)
+       ON DUPLICATE KEY UPDATE check_in = VALUES(check_in), check_out = NULL, status = 'present'`,
       [newId, userId, dateStr, now]
     );
 

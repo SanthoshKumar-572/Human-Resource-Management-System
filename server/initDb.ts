@@ -41,6 +41,7 @@ export async function initializeDatabase() {
         \`id\` VARCHAR(36) PRIMARY KEY,
         \`name\` VARCHAR(255) NOT NULL,
         \`email\` VARCHAR(255) NOT NULL UNIQUE,
+        \`password\` VARCHAR(255) NOT NULL DEFAULT 'password123',
         \`role\` ENUM('employee', 'admin') NOT NULL DEFAULT 'employee',
         \`department\` VARCHAR(255) NOT NULL,
         \`position\` VARCHAR(255) NOT NULL,
@@ -49,6 +50,18 @@ export async function initializeDatabase() {
         \`join_date\` DATE NOT NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Migration: ensure password column exists on existing installations
+    try {
+      await connection.query(`
+        ALTER TABLE \`users\` ADD COLUMN \`password\` VARCHAR(255) NOT NULL DEFAULT 'password123';
+      `);
+    } catch (e: any) {
+      // Column might already exist, ignore duplicate column error ER_DUP_FIELDNAME (1060)
+      if (e?.errno !== 1060 && !e?.message?.includes('Duplicate column name')) {
+        console.warn('Migration warning for password column:', e?.message || e);
+      }
+    }
 
     // 4. Create Attendance Table
     await connection.query(`
@@ -87,10 +100,10 @@ export async function initializeDatabase() {
     if (userRows[0].count === 0) {
       console.log('🌱 Seeding initial user data...');
       await connection.query(`
-        INSERT INTO users (id, name, email, role, department, position, salary, join_date)
+        INSERT INTO users (id, name, email, password, role, department, position, salary, join_date)
         VALUES 
-        ('1', 'Sarah Connor', 'sarah@dayflow.com', 'employee', 'Engineering', 'Frontend Developer', 95000.00, '2023-01-15'),
-        ('2', 'Admin User', 'admin@dayflow.com', 'admin', 'HR', 'HR Manager', 110000.00, '2021-06-01');
+        ('1', 'Sarah Connor', 'sarah@dayflow.com', 'password123', 'employee', 'Engineering', 'Frontend Developer', 95000.00, '2023-01-15'),
+        ('2', 'Admin User', 'admin@dayflow.com', 'password123', 'admin', 'HR', 'HR Manager', 110000.00, '2021-06-01');
       `);
 
       const yesterdayStr = format(addDays(new Date(), -1), 'yyyy-MM-dd');
