@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { addDays, startOfDay, format } from 'date-fns';
+import { addDays, format } from 'date-fns';
 
 export type Role = 'employee' | 'admin';
 
@@ -47,19 +47,23 @@ interface AppState {
   users: User[];
   attendance: AttendanceRecord[];
   leaveRequests: LeaveRequest[];
+  isDbConnected: boolean;
   
   // Actions
-  login: (email: string, role: Role) => void;
+  fetchInitialData: () => Promise<void>;
+  login: (email: string, role: Role) => Promise<void>;
   logout: () => void;
   
-  checkIn: () => void;
-  checkOut: () => void;
+  checkIn: () => Promise<void>;
+  checkOut: () => Promise<void>;
   
-  applyLeave: (request: Omit<LeaveRequest, 'id' | 'userId' | 'status' | 'createdAt'>) => void;
-  updateLeaveStatus: (id: string, status: LeaveStatus, comment?: string) => void;
+  applyLeave: (request: Omit<LeaveRequest, 'id' | 'userId' | 'status' | 'createdAt'>) => Promise<void>;
+  updateLeaveStatus: (id: string, status: LeaveStatus, comment?: string) => Promise<void>;
   
-  updateUser: (id: string, data: Partial<User>) => void;
+  updateUser: (id: string, data: Partial<User>) => Promise<void>;
 }
+
+const yesterdayStr = format(addDays(new Date(), -1), 'yyyy-MM-dd');
 
 const mockUsers: User[] = [
   {
@@ -84,9 +88,6 @@ const mockUsers: User[] = [
   }
 ];
 
-const todayStr = format(new Date(), 'yyyy-MM-dd');
-const yesterdayStr = format(addDays(new Date(), -1), 'yyyy-MM-dd');
-
 const mockAttendance: AttendanceRecord[] = [
   {
     id: 'a1',
@@ -105,13 +106,59 @@ export const useStore = create<AppState>()(
       users: mockUsers,
       attendance: mockAttendance,
       leaveRequests: [],
+      isDbConnected: false,
+
+      fetchInitialData: async () => {
+        try {
+          const [usersRes, attRes, leaveRes] = await Promise.all([
+            fetch('/api/users').then(res => res.ok ? res.json() : null),
+            fetch('/api/attendance').then(res => res.ok ? res.json() : null),
+            fetch('/api/leave').then(res => res.ok ? res.json() : null),
+          ]);
+
+          if (usersRes) {
+            set({
+              users: usersRes,
+              attendance: attRes || get().attendance,
+              leaveRequests: leaveRes || get().leaveRequests,
+              isDbConnected: true,
+            });
+
+            // Update current logged-in user if exists
+            const current = get().currentUser;
+            if (current) {
+              const updatedCurrent = usersRes.find((u: User) => u.id === current.id);
+              if (updatedCurrent) set({ currentUser: updatedCurrent });
+            }
+          }
+        } catch {
+          set({ isDbConnected: false });
+        }
+      },
       
-      login: (email, role) => {
+      login: async (email, role) => {
+        try {
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, role })
+          });
+
+          if (response.ok) {
+            const user = await response.json();
+            set({ currentUser: user, isDbConnected: true });
+            await get().fetchInitialData();
+            return;
+          }
+        } catch (e) {
+          console.warn('MySQL API unreachable, falling back to local state:', e);
+        }
+
+        // Fallback local logic if MySQL server is not connected
         const user = get().users.find(u => u.email === email && u.role === role);
         if (user) {
           set({ currentUser: user });
         } else {
-          // If not found, create for mock purposes (hackathon trick)
           const newUser: User = {
             id: Math.random().toString(36).substr(2, 9),
             name: email.split('@')[0],
@@ -127,13 +174,31 @@ export const useStore = create<AppState>()(
       
       logout: () => set({ currentUser: null }),
       
-      checkIn: () => {
+      checkIn: async () => {
         const user = get().currentUser;
         if (!user) return;
-        
+
+        try {
+          const response = await fetch('/api/attendance/check-in', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id })
+          });
+
+          if (response.ok) {
+            const record = await response.json();
+            set(state => ({
+              attendance: [record, ...state.attendance.filter(a => !(a.userId === user.id && a.date === record.date))]
+            }));
+            return;
+          }
+        } catch (e) {
+          console.warn('MySQL checkIn API error:', e);
+        }
+
+        // Fallback local check-in
         const now = new Date();
         const dateStr = format(now, 'yyyy-MM-dd');
-        
         const existing = get().attendance.find(a => a.userId === user.id && a.date === dateStr);
         if (!existing) {
           const newRecord: AttendanceRecord = {
@@ -147,13 +212,33 @@ export const useStore = create<AppState>()(
         }
       },
       
-      checkOut: () => {
+      checkOut: async () => {
         const user = get().currentUser;
         if (!user) return;
-        
+
+        try {
+          const response = await fetch('/api/attendance/check-out', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id })
+          });
+
+          if (response.ok) {
+            const record = await response.json();
+            set(state => ({
+              attendance: state.attendance.map(a => 
+                (a.userId === user.id && a.date === record.date) ? record : a
+              )
+            }));
+            return;
+          }
+        } catch (e) {
+          console.warn('MySQL checkOut API error:', e);
+        }
+
+        // Fallback local check-out
         const now = new Date();
         const dateStr = format(now, 'yyyy-MM-dd');
-        
         set(state => ({
           attendance: state.attendance.map(a => 
             (a.userId === user.id && a.date === dateStr)
@@ -163,10 +248,29 @@ export const useStore = create<AppState>()(
         }));
       },
       
-      applyLeave: (request) => {
+      applyLeave: async (request) => {
         const user = get().currentUser;
         if (!user) return;
-        
+
+        try {
+          const response = await fetch('/api/leave', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...request, userId: user.id })
+          });
+
+          if (response.ok) {
+            const newReq = await response.json();
+            set(state => ({
+              leaveRequests: [newReq, ...state.leaveRequests]
+            }));
+            return;
+          }
+        } catch (e) {
+          console.warn('MySQL applyLeave API error:', e);
+        }
+
+        // Fallback local applyLeave
         const newReq: LeaveRequest = {
           ...request,
           id: Math.random().toString(36).substr(2, 9),
@@ -180,7 +284,26 @@ export const useStore = create<AppState>()(
         }));
       },
       
-      updateLeaveStatus: (id, status, comment) => {
+      updateLeaveStatus: async (id, status, comment) => {
+        try {
+          const response = await fetch(`/api/leave/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status, comment })
+          });
+
+          if (response.ok) {
+            const updated = await response.json();
+            set(state => ({
+              leaveRequests: state.leaveRequests.map(r => r.id === id ? updated : r)
+            }));
+            return;
+          }
+        } catch (e) {
+          console.warn('MySQL updateLeaveStatus API error:', e);
+        }
+
+        // Fallback local update
         set(state => ({
           leaveRequests: state.leaveRequests.map(r => 
             r.id === id ? { ...r, status, adminComment: comment } : r
@@ -188,7 +311,27 @@ export const useStore = create<AppState>()(
         }));
       },
       
-      updateUser: (id, data) => {
+      updateUser: async (id, data) => {
+        try {
+          const response = await fetch(`/api/users/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+
+          if (response.ok) {
+            const updatedUser = await response.json();
+            set(state => ({
+              users: state.users.map(u => u.id === id ? updatedUser : u),
+              currentUser: state.currentUser?.id === id ? updatedUser : state.currentUser
+            }));
+            return;
+          }
+        } catch (e) {
+          console.warn('MySQL updateUser API error:', e);
+        }
+
+        // Fallback local update
         set(state => ({
           users: state.users.map(u => u.id === id ? { ...u, ...data } : u),
           currentUser: state.currentUser?.id === id ? { ...state.currentUser, ...data } : state.currentUser
