@@ -1,45 +1,54 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import { format, addDays } from 'date-fns';
+import { getDbConfig } from './db';
 
 dotenv.config();
 
-const dbHost = process.env.DB_HOST || 'localhost';
-const dbPort = Number(process.env.DB_PORT) || 3306;
-const dbUser = process.env.DB_USER || 'root';
-const dbPassword = process.env.DB_PASSWORD || '';
-const dbName = process.env.DB_NAME || 'dayflow_db';
-
-const sslOption = (dbHost && dbHost !== 'localhost') || process.env.DATABASE_URL
-  ? { rejectUnauthorized: false }
-  : undefined;
-
 export async function initializeDatabase() {
-  console.log(`🔌 Connecting to MySQL server at ${dbHost}:${dbPort}...`);
+  const config = getDbConfig();
+  console.log(`🔌 Connecting to MySQL server at ${config.host}:${config.port}...`);
   try {
-    // 1. Connect without database selected to ensure database exists
-    const rootConnection = await mysql.createConnection({
-      host: dbHost,
-      port: dbPort,
-      user: dbUser,
-      password: dbPassword,
-      ssl: sslOption
-    });
+    let connection: mysql.Connection;
+    try {
+      // Connect directly to target database
+      connection = await mysql.createConnection({
+        host: config.host,
+        port: config.port,
+        user: config.user,
+        password: config.password,
+        database: config.database,
+        ssl: config.ssl,
+        multipleStatements: true
+      });
+      console.log(`✅ Connected directly to database '${config.database}'.`);
+    } catch (dbErr: any) {
+      // If DB does not exist yet (Error 1049 / ER_BAD_DB_ERROR), create database first
+      if (dbErr?.errno === 1049 || dbErr?.code === 'ER_BAD_DB_ERROR') {
+        console.log(`Database '${config.database}' missing, creating...`);
+        const rootConnection = await mysql.createConnection({
+          host: config.host,
+          port: config.port,
+          user: config.user,
+          password: config.password,
+          ssl: config.ssl
+        });
+        await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${config.database}\`;`);
+        await rootConnection.end();
 
-    await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\`;`);
-    console.log(`✅ Database '${dbName}' verified/created.`);
-    await rootConnection.end();
-
-    // 2. Connect to the specific database
-    const connection = await mysql.createConnection({
-      host: dbHost,
-      port: dbPort,
-      user: dbUser,
-      password: dbPassword,
-      database: dbName,
-      ssl: sslOption,
-      multipleStatements: true
-    });
+        connection = await mysql.createConnection({
+          host: config.host,
+          port: config.port,
+          user: config.user,
+          password: config.password,
+          database: config.database,
+          ssl: config.ssl,
+          multipleStatements: true
+        });
+      } else {
+        throw dbErr;
+      }
+    }
 
     // 3. Create Users Table
     await connection.query(`

@@ -298,16 +298,25 @@ app.use(express.static(distPath));
 
 app.get('*', (req: Request, res: Response, next) => {
   if (req.path.startsWith('/api')) return next();
-  res.sendFile(path.join(distPath, 'index.html'), (err) => {
-    if (err) next();
+  const indexPath = path.join(distPath, 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      res.status(404).send('Application built static files missing. Please ensure build command "npm run build" is executed during deployment.');
+    }
   });
 });
 
 // Start Express Server
 async function startServer() {
-  await initializeDatabase();
-  app.listen(PORT, () => {
-    console.log(`🚀 Express server running on port ${PORT} with MySQL integration.`);
+  try {
+    await initializeDatabase();
+  } catch (err) {
+    console.error('Failed to initialize database, starting server anyway:', err);
+  }
+
+  const portNum = Number(PORT) || 5000;
+  app.listen(portNum, '0.0.0.0', () => {
+    console.log(`🚀 Express server running on 0.0.0.0:${portNum} with MySQL integration.`);
   });
 }
 
