@@ -19,6 +19,12 @@ Built with **React 19**, **TypeScript**, **Express.js**, and an **Aiven Cloud My
 
 ## 🖼️ Interface Screenshots
 
+### 🔑 Authentication — Role-Based Sign In
+Seamless sign-in with tabbed role selection (Employee / Administrator), password verification, and SSO organization support.
+![Sign In Page](docs/images/login_page.png)
+
+---
+
 ### 📊 Admin Portal — Real-time Dashboard & Employee Directory
 Manage active shift coverage, employee directories, pending leave approvals, and schedule reviews in real time.
 ![Admin Dashboard](docs/images/admin_dashboard.png)
@@ -73,6 +79,7 @@ Production database tables (`users`, `attendance`, `leave_requests`) hosted on A
 ```
 ├── docs/
 │   └── images/               # Screenshots for README documentation
+│       ├── login_page.png
 │       ├── admin_dashboard.png
 │       ├── employee_dashboard.png
 │       └── mysql_workbench.png
