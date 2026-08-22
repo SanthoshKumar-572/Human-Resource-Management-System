@@ -10,6 +10,10 @@ const dbUser = process.env.DB_USER || 'root';
 const dbPassword = process.env.DB_PASSWORD || '';
 const dbName = process.env.DB_NAME || 'dayflow_db';
 
+const sslOption = (dbHost && dbHost !== 'localhost') || process.env.DATABASE_URL
+  ? { rejectUnauthorized: false }
+  : undefined;
+
 export async function initializeDatabase() {
   console.log(`🔌 Connecting to MySQL server at ${dbHost}:${dbPort}...`);
   try {
@@ -18,7 +22,8 @@ export async function initializeDatabase() {
       host: dbHost,
       port: dbPort,
       user: dbUser,
-      password: dbPassword
+      password: dbPassword,
+      ssl: sslOption
     });
 
     await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\`;`);
@@ -32,6 +37,7 @@ export async function initializeDatabase() {
       user: dbUser,
       password: dbPassword,
       database: dbName,
+      ssl: sslOption,
       multipleStatements: true
     });
 
