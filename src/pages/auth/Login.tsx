@@ -9,8 +9,8 @@ import { cn } from '@/lib/utils';
 
 export default function Login() {
   const [role, setRole] = useState<Role>('employee');
-  const [email, setEmail] = useState('sarah@dayflow.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   
   const { login, setToastMessage, toastMessage } = useStore();
@@ -18,11 +18,6 @@ export default function Login() {
 
   const handleRoleSwitch = (newRole: Role) => {
     setRole(newRole);
-    if (newRole === 'admin') {
-      setEmail('admin@dayflow.com');
-    } else {
-      setEmail('sarah@dayflow.com');
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
