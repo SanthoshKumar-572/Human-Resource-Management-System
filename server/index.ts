@@ -290,6 +290,19 @@ app.patch('/api/leave/:id', async (req: Request, res: Response) => {
   }
 });
 
+import path from 'path';
+
+// Serve static frontend files from dist directory in production
+const distPath = path.resolve(process.cwd(), 'dist');
+app.use(express.static(distPath));
+
+app.get('*', (req: Request, res: Response, next) => {
+  if (req.path.startsWith('/api')) return next();
+  res.sendFile(path.join(distPath, 'index.html'), (err) => {
+    if (err) next();
+  });
+});
+
 // Start Express Server
 async function startServer() {
   await initializeDatabase();
