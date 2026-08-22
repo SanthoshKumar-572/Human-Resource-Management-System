@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore, Role } from '@/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Mail, Lock, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, ShieldCheck, CheckCircle2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Login() {
@@ -15,6 +15,16 @@ export default function Login() {
   
   const { login, setToastMessage, toastMessage } = useStore();
   const navigate = useNavigate();
+
+  // Auto-dismiss toast message after 4 seconds
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage, setToastMessage]);
 
   const handleRoleSwitch = (newRole: Role) => {
     setRole(newRole);
@@ -57,9 +67,18 @@ export default function Login() {
       </CardHeader>
       <CardContent>
         {toastMessage && (
-          <div className="mb-4 bg-emerald-bg border border-emerald/30 text-emerald text-xs font-semibold p-3 rounded-lg flex items-center gap-2 animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald shrink-0" />
-            <span>{toastMessage}</span>
+          <div className="mb-4 bg-emerald-bg border border-emerald/30 text-emerald text-xs font-semibold p-3 rounded-lg flex items-center justify-between gap-2 animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald shrink-0" />
+              <span>{toastMessage}</span>
+            </div>
+            <button
+              onClick={() => setToastMessage(null)}
+              className="text-text-muted hover:text-emerald p-0.5 rounded cursor-pointer"
+              title="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
         <div className="flex p-1 bg-surface-hover rounded-lg mb-6">

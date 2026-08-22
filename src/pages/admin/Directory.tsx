@@ -55,7 +55,7 @@ export default function Directory() {
       });
 
       setToastMessage(`Employee ${formData.name} added successfully!`);
-      setTimeout(() => setToastMessage(null), 4000);
+      setTimeout(() => setToastMessage(null), 2500);
 
       // Reset form & close modal
       setFormData({

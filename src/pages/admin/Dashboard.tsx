@@ -40,7 +40,7 @@ export default function AdminDashboard() {
       setIsSavingSchedule(false);
       setIsScheduleModalOpen(false);
       setToastMessage('Shift schedule successfully reviewed and published!');
-      setTimeout(() => setToastMessage(null), 5000);
+      setTimeout(() => setToastMessage(null), 2500);
     }, 1000);
   };
 

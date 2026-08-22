@@ -106,6 +106,8 @@ const mockAttendance: AttendanceRecord[] = [
   }
 ];
 
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -116,7 +118,19 @@ export const useStore = create<AppState>()(
       isDbConnected: false,
       toastMessage: null,
 
-      setToastMessage: (msg) => set({ toastMessage: msg }),
+      setToastMessage: (msg) => {
+        if (toastTimer) {
+          clearTimeout(toastTimer);
+          toastTimer = null;
+        }
+        set({ toastMessage: msg });
+        if (msg) {
+          toastTimer = setTimeout(() => {
+            set({ toastMessage: null });
+            toastTimer = null;
+          }, 2500);
+        }
+      },
 
       fetchInitialData: async () => {
         try {
@@ -402,6 +416,13 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'dayflow-storage',
+      partialize: (state) => ({
+        currentUser: state.currentUser,
+        users: state.users,
+        attendance: state.attendance,
+        leaveRequests: state.leaveRequests,
+        isDbConnected: state.isDbConnected,
+      }),
     }
   )
 );

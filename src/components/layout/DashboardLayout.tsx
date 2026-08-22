@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useStore } from "@/store";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
+import { Logo } from "@/components/ui/Logo";
 import { 
   LayoutDashboard, 
   CalendarDays, 
@@ -110,7 +111,7 @@ export function DashboardLayout() {
   // Auto-dismiss toastMessage after 4 seconds
   useEffect(() => {
     if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 4000);
+      const timer = setTimeout(() => setToastMessage(null), 2500);
       return () => clearTimeout(timer);
     }
   }, [toastMessage, setToastMessage]);
@@ -138,9 +139,7 @@ export function DashboardLayout() {
       {/* Sidebar - Timeline Style */}
       <aside className="w-full md:w-24 lg:w-64 bg-surface border-r border-border flex flex-col pt-6 pb-6 relative shrink-0">
         <div className="px-6 mb-12 flex items-center gap-3">
-          <div className="w-8 h-8 bg-steel rounded-lg flex items-center justify-center text-white shrink-0">
-            <LayoutDashboard className="w-4 h-4" />
-          </div>
+          <Logo size="sm" />
           <span className="font-display font-semibold text-lg hidden lg:block text-ink">Dayflow</span>
         </div>
 

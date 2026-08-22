@@ -40,7 +40,7 @@ export default function Payroll() {
       setIsGenerating(false);
       setIsBulkModalOpen(false);
       setToastMessage(`Successfully generated and dispatched ${users.length} payslips for ${payMonth}!`);
-      setTimeout(() => setToastMessage(null), 5000);
+      setTimeout(() => setToastMessage(null), 2500);
     }, 1200);
   };
 
@@ -368,7 +368,7 @@ export default function Payroll() {
                       onClick={() => {
                         setToastMessage(`Payslip sent to ${selectedUserSlip.email}`);
                         setSelectedUserSlip(null);
-                        setTimeout(() => setToastMessage(null), 4000);
+                        setTimeout(() => setToastMessage(null), 2500);
                       }}
                       className="gap-2"
                     >
