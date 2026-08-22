@@ -3,12 +3,23 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const dbConfig = {
+const sslOption = process.env.DB_SSL === 'true' || process.env.DATABASE_URL || (process.env.DB_HOST && process.env.DB_HOST !== 'localhost')
+  ? { rejectUnauthorized: false }
+  : undefined;
+
+const dbConfig = process.env.DATABASE_URL ? {
+  uri: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+} : {
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT) || 3306,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'dayflow_db',
+  ssl: sslOption,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
