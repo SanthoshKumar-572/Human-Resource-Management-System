@@ -17,6 +17,17 @@ Built with **React 19**, **TypeScript**, **Express.js**, and an **Aiven Cloud My
 
 ---
 
+## 🔐 Demo Credentials for Reviewers
+
+Use the following pre-configured credentials to test both **Administrator** and **Employee** portals:
+
+| Role | Email Address | Password | Tab Selection |
+| :--- | :--- | :--- | :--- |
+| 👑 **Administrator** | `admin@dayflow.com` | `password123` | **Administrator** |
+| 👤 **Employee** | `sarah@dayflow.com` | `password123` | **Employee** |
+
+---
+
 ## 🖼️ Interface Screenshots
 
 ### 🔑 Authentication — Role-Based Sign In
